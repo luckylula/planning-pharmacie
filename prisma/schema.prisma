@@ -1,0 +1,85 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Slot {
+  MATIN
+  APREM
+}
+
+model User {
+  id         String    @id @default(cuid())
+  email      String    @unique
+  password   String
+  role       String    @default("employee")
+  employeeId String?   @unique
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+  createdAt  DateTime  @default(now())
+}
+
+model Employee {
+  id           String             @id @default(cuid())
+  name         String
+  color        String             @default("#607d8b")
+  order        Int                @default(0)
+  user         User?
+  patternCells PatternCell[]
+  overrides    ScheduleOverride[]
+  createdAt    DateTime           @default(now())
+}
+
+model Shift {
+  id           String             @id @default(cuid())
+  label        String
+  shortCode    String
+  startHour    Int?
+  startMin     Int?
+  endHour      Int?
+  endMin       Int?
+  bgColor      String             @default("#eeeeee")
+  fgColor      String             @default("#757575")
+  isRepos      Boolean            @default(false)
+  order        Int                @default(0)
+  patternCells PatternCell[]
+  overrides    ScheduleOverride[]
+}
+
+model CycleConfig {
+  id        String   @id @default(cuid())
+  startDate DateTime
+  updatedAt DateTime @updatedAt
+}
+
+model PatternCell {
+  id         String   @id @default(cuid())
+  dayIndex   Int
+  employeeId String
+  shiftId    String
+  slot       Slot     @default(MATIN)
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  shift      Shift    @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+
+  @@unique([dayIndex, employeeId, slot])
+}
+
+model ScheduleOverride {
+  id         String   @id @default(cuid())
+  date       DateTime @db.Date
+  employeeId String
+  shiftId    String
+  slot       Slot     @default(MATIN)
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  shift      Shift    @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+
+  @@unique([date, employeeId, slot])
+}
