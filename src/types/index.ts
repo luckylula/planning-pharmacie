@@ -5,6 +5,10 @@ export type Employee = {
   name: string
   color: string
   order: number
+  user?: {
+    email: string
+    role: string
+  } | null
 }
 
 export type Shift = {

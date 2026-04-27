@@ -34,6 +34,10 @@ export function getShiftIdForDate(
   cycleStartDate: Date,
   reposShiftId: string
 ): string {
+  const weekday = getDayOfWeek(date)
+  // Regle metier: samedi apres-midi ferme (affiche Repos).
+  if (weekday === 5 && slot === 'APREM') return reposShiftId
+
   const dateStr = formatDate(date)
   const override = overrides.find(
     (o) => formatDate(new Date(o.date)) === dateStr && o.employeeId === employeeId && o.slot === slot

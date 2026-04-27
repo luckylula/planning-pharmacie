@@ -66,11 +66,12 @@ Le schéma n’est pas versionné avec des migrations Prisma dans ce repo : on u
 
 ```bash
 set DATABASE_URL=postgresql://...   # PowerShell: $env:DATABASE_URL="..."
+cd planning-pharmacie   # ou restez dans ce dossier si déjà dedans
 npx prisma db push
 npx prisma db seed
 ```
 
-Ou exécutez `node prisma/ensure-norman-admin.cjs` si vous utilisez ce script pour l’admin.
+Le seed crée l’admin **`norman@pharmacie.fr`** avec le mot de passe **`pharmacie2026`** (à changer en prod). Si la base existe déjà sans ce compte, vous pouvez lancer **`npm run db:ensure-norman`** avec une variable **`NORMAN_PASSWORD`** pour créer ou mettre à jour le mot de passe (voir l’en-tête de `prisma/ensure-norman-admin.cjs`).
 
 **Important** : la base doit accepter les connexions SSL depuis Vercel (la plupart des hébergeurs cloud le font).
 

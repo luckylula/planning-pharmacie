@@ -118,10 +118,13 @@ function hexToRgb(hex: string): [number, number, number] {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
 }
 
-type WeekViewMode = 'day' | 'week' | 'month'
+type WeekViewMode = 'day' | 'week' | 'month' | 'calendar'
 
 export default function AdminPage() {
   const [tab, setTab] = useState<Tab>('calendar')
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
+  const [sessionEmployeeId, setSessionEmployeeId] = useState<string | null>(null)
+  const [calendarEmployeeFocus, setCalendarEmployeeFocus] = useState<'all' | string>('all')
   const [data, setData] = useState<ScheduleData | null>(null)
   const [year, setYear] = useState(new Date().getFullYear())
   const [month, setMonth] = useState(new Date().getMonth())
@@ -139,6 +142,7 @@ export default function AdminPage() {
   const [newShift, setNewShift] = useState<Partial<Shift>>({ label: '', shortCode: '', bgColor: '#eeeeee', fgColor: '#757575' })
   const [newShiftTime, setNewShiftTime] = useState({ debut: '09:00', fin: '12:30' })
   const [newEmp, setNewEmp] = useState({ name: '', color: '#607d8b', email: '', password: '' })
+  const [employeeAccessDrafts, setEmployeeAccessDrafts] = useState<Record<string, { email: string; password: string }>>({})
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeekMonday(new Date()))
   const [weekViewMode, setWeekViewMode] = useState<WeekViewMode>('week')
   const [dayViewDate, setDayViewDate] = useState<Date>(() => {
@@ -187,9 +191,29 @@ export default function AdminPage() {
   }, [reloadScheduleData])
 
   useEffect(() => {
+    void fetch('/api/auth/session')
+      .then((r) => r.json())
+      .then((s) => {
+        setIsAdmin((s?.user?.role ?? '') === 'admin')
+        const sid = typeof s?.user?.employeeId === 'string' ? s.user.employeeId : null
+        setSessionEmployeeId(sid)
+        if ((s?.user?.role ?? '') !== 'admin' && sid) {
+          setCalendarEmployeeFocus(sid)
+        }
+      })
+      .catch(() => setIsAdmin(false))
+  }, [])
+
+  useEffect(() => {
     const t = new URLSearchParams(window.location.search).get('tab') as Tab | null
     if (t && ['calendar', 'week', 'consult', 'pattern', 'employees', 'shifts'].includes(t)) setTab(t)
   }, [])
+
+  useEffect(() => {
+    if (isAdmin === false && ['pattern', 'employees', 'shifts'].includes(tab)) {
+      setTab('calendar')
+    }
+  }, [isAdmin, tab])
 
   useEffect(() => {
     const close = (e: MouseEvent) => {
@@ -200,6 +224,15 @@ export default function AdminPage() {
     document.addEventListener('mousedown', close)
     return () => document.removeEventListener('mousedown', close)
   }, [])
+
+  useEffect(() => {
+    if (!data) return
+    const drafts: Record<string, { email: string; password: string }> = {}
+    for (const e of data.employees) {
+      drafts[e.id] = { email: e.user?.email ?? '', password: '' }
+    }
+    setEmployeeAccessDrafts(drafts)
+  }, [data])
 
   const reposShift = useMemo(() => data?.shifts.find((s) => s.isRepos) ?? data?.shifts[0], [data])
   const cycleStart = useMemo(() => (data?.cycleConfig ? new Date(data.cycleConfig.startDate) : new Date('2026-03-02')), [data])
@@ -218,6 +251,26 @@ export default function AdminPage() {
     }
     return weeks
   }, [monthViewYear, monthViewMonth])
+
+  const calendarEmployees = useMemo(() => {
+    if (!data) return []
+    if (calendarEmployeeFocus === 'all') return data.employees
+    const only = data.employees.find((e) => e.id === calendarEmployeeFocus)
+    return only ? [only] : data.employees
+  }, [data, calendarEmployeeFocus])
+
+  const calendarTableMinWidth = useMemo(() => {
+    // Keep the table compact when one employee is selected.
+    const px = 200 + calendarEmployees.length * 170
+    return `${Math.max(380, px)}px`
+  }, [calendarEmployees.length])
+
+  useEffect(() => {
+    if (!data) return
+    if (calendarEmployeeFocus !== 'all' && !data.employees.some((e) => e.id === calendarEmployeeFocus)) {
+      setCalendarEmployeeFocus('all')
+    }
+  }, [data, calendarEmployeeFocus])
 
   const consultRange = useMemo(() => {
     const now = new Date()
@@ -352,7 +405,7 @@ export default function AdminPage() {
   if (data.shifts.length === 0) {
     return (
       <div className="p-6 max-w-lg space-y-2">
-        <p className="text-gray-800">Aucun créneau (shift) n’est défini. Ajoutez au moins un shift dont un « repos » dans l’onglet Turnos.</p>
+        <p className="text-gray-800">Aucun créneau (shift) n’est défini. Ajoutez au moins un shift dont un « repos » dans l’onglet Créneaux.</p>
       </div>
     )
   }
@@ -362,6 +415,12 @@ export default function AdminPage() {
   }
 
   const shiftById = Object.fromEntries(data.shifts.map((s) => [s.id, s]))
+  const pickerShifts = !picker?.slot
+    ? data.shifts
+    : data.shifts.filter((s) => {
+        if (s.isRepos) return true
+        return picker.slot === 'MATIN' ? coversWeekMatin(s) : coversWeekApresMidi(s)
+      })
 
   const updatePattern = async (dayIndex: number, employeeId: string, shiftId: string, slot: Slot) => {
     const prev = data.patternCells
@@ -594,6 +653,80 @@ export default function AdminPage() {
 
       drawPdfFooter(doc, pageW, pageH)
       doc.save(`vue_semaine_${formatDate(weekStart)}.pdf`)
+      return
+    }
+
+    if (weekViewMode === 'calendar') {
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+      const pageW = doc.internal.pageSize.getWidth()
+      const pageH = doc.internal.pageSize.getHeight()
+      const margin = 8
+      const rowH = 6.5
+      const dayColW = 26
+      const colW = Math.max(14, (pageW - margin * 2 - dayColW) / data.employees.length)
+
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(13)
+      doc.text(`Calendrier ${MONTHS_FR[month]} ${year}`, pageW / 2, margin + 4, { align: 'center' })
+      doc.setFont('helvetica', 'normal')
+
+      const drawHeader = (y: number) => {
+        doc.setFillColor(240, 240, 240)
+        doc.rect(margin, y, dayColW, rowH, 'F')
+        doc.rect(margin, y, dayColW, rowH, 'S')
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(8)
+        doc.text('Jour', margin + 2, y + 4.3)
+        data.employees.forEach((e, idx) => {
+          const x = margin + dayColW + idx * colW
+          doc.setFillColor(240, 240, 240)
+          doc.rect(x, y, colW, rowH, 'F')
+          doc.rect(x, y, colW, rowH, 'S')
+          doc.text(e.name.slice(0, 14), x + 1.2, y + 4.3)
+        })
+        doc.setFont('helvetica', 'normal')
+      }
+
+      let y = margin + 10
+      drawHeader(y)
+      y += rowH
+
+      for (const d of days) {
+        if (y + rowH > pageH - 12) {
+          drawPdfFooter(doc, pageW, pageH)
+          doc.addPage()
+          y = margin + 8
+          drawHeader(y)
+          y += rowH
+        }
+
+        const wd = getDayOfWeek(d)
+        const dayLabel = `${DAYS_FR[wd]} ${d.getDate()}`
+        const holidayName = holidayMap[formatDate(d)]
+        if (holidayName) doc.setFillColor(254, 215, 215)
+        else if (wd === 6) doc.setFillColor(254, 226, 226)
+        else if (wd === 5) doc.setFillColor(237, 233, 254)
+        else doc.setFillColor(255, 255, 255)
+        // Fill the full row (day + all employee columns) for weekends/holidays.
+        doc.rect(margin, y, dayColW + colW * data.employees.length, rowH, 'F')
+        doc.rect(margin, y, dayColW, rowH, 'S')
+        doc.setFontSize(7.5)
+        doc.text(dayLabel, margin + 1.2, y + 4.3)
+
+        data.employees.forEach((emp, idx) => {
+          const x = margin + dayColW + idx * colW
+          const sidM = getShiftIdForDate(emp.id, d, 'MATIN', data.patternCells, data.overrides, cycleStart, reposShift.id)
+          const sidA = getShiftIdForDate(emp.id, d, 'APREM', data.patternCells, data.overrides, cycleStart, reposShift.id)
+          const shortM = shiftById[sidM]?.isRepos ? '—' : shiftById[sidM]?.shortCode ?? '—'
+          const shortA = shiftById[sidA]?.isRepos ? '—' : shiftById[sidA]?.shortCode ?? '—'
+          doc.rect(x, y, colW, rowH, 'S')
+          doc.text(`${shortM}/${shortA}`.slice(0, 12), x + 1.2, y + 4.3)
+        })
+        y += rowH
+      }
+
+      drawPdfFooter(doc, pageW, pageH)
+      doc.save(`calendrier_${MONTHS_FR[month]}_${year}.pdf`)
       return
     }
 
@@ -862,9 +995,12 @@ export default function AdminPage() {
   return (
     <div className="p-4 md:p-6 space-y-4">
       <div className="flex gap-2 flex-wrap">
-        {(['calendar', 'week', 'consult', 'pattern', 'employees', 'shifts'] as Tab[]).map((t) => (
+        {((isAdmin ?? false)
+          ? (['calendar', 'week', 'consult', 'pattern', 'employees', 'shifts'] as Tab[])
+          : (['calendar', 'week', 'consult'] as Tab[])
+        ).map((t) => (
           <button key={t} onClick={() => setTab(t)} className={`px-3 py-2 rounded-lg text-sm ${tab === t ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}>
-            {t === 'calendar' ? 'Calendrier' : t === 'week' ? 'Vue semaine' : t === 'consult' ? 'Consulter' : t === 'pattern' ? 'Roulement 2 semaines' : t === 'employees' ? 'Employees' : 'Turnos'}
+            {t === 'calendar' ? 'Calendrier' : t === 'week' ? 'Vue semaine' : t === 'consult' ? 'Consulter' : t === 'pattern' ? 'Roulement 2 semaines' : t === 'employees' ? 'Employés' : 'Créneaux'}
           </button>
         ))}
         <button onClick={() => signOut({ callbackUrl: '/login' })} className="ml-auto px-3 py-2 bg-gray-900 text-white rounded-lg text-sm">Se deconnecter</button>
@@ -877,15 +1013,62 @@ export default function AdminPage() {
             <div className="font-semibold">{MONTHS_FR[month]} {year}</div>
             <button onClick={() => (month === 11 ? (setYear((y) => y + 1), setMonth(0)) : setMonth((m) => m + 1))} className="px-2 py-1 border rounded">→</button>
             <div className="ml-auto flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setCalendarEmployeeFocus('all')}
+                className="px-3 py-2 border rounded-lg text-sm"
+              >
+                Voir tous
+              </button>
               <button type="button" onClick={exportCsv} className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm">⬇ Exporter CSV</button>
             </div>
           </div>
-          <div className="overflow-x-auto border rounded-lg">
-            <table className="min-w-[900px] w-full text-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-gray-500 mr-1">Employé</span>
+            <button
+              type="button"
+              onClick={() => setCalendarEmployeeFocus('all')}
+              className={`h-10 min-w-[88px] px-3 rounded-lg border text-sm font-medium transition-colors ${
+                calendarEmployeeFocus === 'all'
+                  ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                  : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              Tous
+            </button>
+            {data.employees.map((e) => (
+              <button
+                key={e.id}
+                type="button"
+                onClick={() => setCalendarEmployeeFocus(e.id)}
+                className={`h-10 min-w-[96px] px-3 rounded-lg border text-sm font-medium transition-colors ${
+                  calendarEmployeeFocus === e.id
+                    ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                    : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
+                title={`Afficher la colonne de ${e.name}`}
+              >
+                {e.name}
+                {sessionEmployeeId === e.id ? ' *' : ''}
+              </button>
+            ))}
+          </div>
+          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+            <table className="w-auto text-sm" style={{ minWidth: calendarTableMinWidth }}>
               <thead>
-                <tr className="bg-gray-100">
-                  <th className="p-2 text-left">Jour</th>
-                  {data.employees.map((e) => <th key={e.id} className="p-2">{e.name}</th>)}
+                <tr className="bg-slate-100/90">
+                  <th className="p-2 text-left border-b border-r border-slate-200">Jour</th>
+                  {calendarEmployees.map((e) => (
+                    <th
+                      key={e.id}
+                      className={`p-2 select-none border-b border-r last:border-r-0 border-slate-200 ${
+                        calendarEmployeeFocus === e.id ? 'bg-blue-100/80 text-blue-800' : ''
+                      }`}
+                    >
+                      {e.name}
+                      {sessionEmployeeId === e.id ? ' (vous)' : ''}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -893,16 +1076,34 @@ export default function AdminPage() {
                   const wd = getDayOfWeek(d)
                   const dKey = formatDate(d)
                   const holidayName = holidayMap[dKey]
+                  const isSaturday = wd === 5
+                  const isSunday = wd === 6
+                  const isHoliday = Boolean(holidayName)
+                  const rowClass = isHoliday
+                    ? 'bg-amber-100/85 border-l-4 border-amber-500'
+                    : isSunday
+                      ? 'bg-rose-100/75 border-l-4 border-rose-400'
+                      : isSaturday
+                        ? 'bg-violet-100/75 border-l-4 border-violet-400'
+                        : ''
                   return (
-                    <tr key={d.toISOString()} className={wd === 6 ? 'bg-red-50' : wd === 5 ? 'bg-violet-50' : ''}>
-                      <td className="p-2 whitespace-nowrap">
+                    <tr key={d.toISOString()} className={rowClass}>
+                      <td className="p-2 whitespace-nowrap border-b border-r border-slate-200 align-top">
                         <span className="inline-flex flex-wrap items-center gap-1.5 align-middle">
+                          {(isHoliday || isSaturday || isSunday) && (
+                            <span
+                              className={`inline-block h-2 w-6 rounded-full ${
+                                isHoliday ? 'bg-amber-500' : isSunday ? 'bg-rose-400' : 'bg-violet-500'
+                              }`}
+                              title={isHoliday ? 'Jour ferié' : isSunday ? 'Dimanche' : 'Samedi'}
+                            />
+                          )}
                           <span>
                             {DAYS_FR[wd]} {d.getDate()}
                           </span>
                           {holidayName && (
                             <span
-                              className="inline-block max-w-[140px] truncate text-[10px] font-semibold px-1.5 py-0.5 rounded bg-red-100 text-red-700 align-middle"
+                              className="inline-block max-w-[140px] truncate text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-200 text-amber-900 align-middle"
                               title={holidayName}
                             >
                               {holidayName}
@@ -910,14 +1111,14 @@ export default function AdminPage() {
                           )}
                         </span>
                       </td>
-                      {data.employees.map((e) => {
+                      {calendarEmployees.map((e) => {
                         const ds = formatDate(d)
                         const shiftM = shiftById[getShiftIdForDate(e.id, d, 'MATIN', data.patternCells, data.overrides, cycleStart, reposShift.id)]
                         const shiftA = shiftById[getShiftIdForDate(e.id, d, 'APREM', data.patternCells, data.overrides, cycleStart, reposShift.id)]
                         const hasOverride = data.overrides.some((o) => formatDate(new Date(o.date)) === ds && o.employeeId === e.id)
                         return (
-                          <td key={e.id} className="p-2 relative align-top">
-                            <div className="flex flex-col gap-1 items-stretch">
+                          <td key={e.id} className="p-2 relative align-top border-b border-r last:border-r-0 border-slate-200">
+                            <div className="flex flex-col gap-0 items-stretch rounded-md overflow-hidden border border-slate-200/80">
                               <button
                                 type="button"
                                 title="Matin"
@@ -939,7 +1140,7 @@ export default function AdminPage() {
                                     })
                                   }, 0)
                                 }}
-                                className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 border border-amber-200/80"
+                                className="px-1.5 py-0.5 text-[10px] font-semibold border-b border-slate-200/80"
                                 style={{ backgroundColor: shiftM?.bgColor, color: shiftM?.fgColor }}
                               >
                                 <span className="opacity-70 mr-0.5">M</span>
@@ -966,10 +1167,10 @@ export default function AdminPage() {
                                     })
                                   }, 0)
                                 }}
-                                className="px-1.5 py-0.5 rounded text-[10px] font-semibold border border-sky-200/80"
+                                className="px-1.5 py-0.5 text-[10px] font-semibold"
                                 style={{ backgroundColor: shiftA?.bgColor, color: shiftA?.fgColor }}
                               >
-                                <span className="opacity-70 mr-0.5">T</span>
+                                <span className="opacity-70 mr-0.5">A</span>
                                 {shiftA?.shortCode}
                               </button>
                             </div>
@@ -984,7 +1185,7 @@ export default function AdminPage() {
               <tfoot>
                 <tr className="bg-gray-50">
                   <td className="p-2 font-medium">Total heures</td>
-                  {data.employees.map((e) => {
+                  {calendarEmployees.map((e) => {
                     const total = days.reduce((acc, d) => {
                       const sidM = getShiftIdForDate(e.id, d, 'MATIN', data.patternCells, data.overrides, cycleStart, reposShift.id)
                       const sidA = getShiftIdForDate(e.id, d, 'APREM', data.patternCells, data.overrides, cycleStart, reposShift.id)
@@ -1003,14 +1204,14 @@ export default function AdminPage() {
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-medium text-gray-500 mr-1">Vue</span>
-            {(['day', 'week', 'month'] as WeekViewMode[]).map((m) => (
+            {(['day', 'week', 'month', 'calendar'] as WeekViewMode[]).map((m) => (
               <button
                 key={m}
                 type="button"
                 onClick={() => setWeekViewMode(m)}
                 className={`px-3 py-1.5 rounded-lg text-sm ${weekViewMode === m ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
               >
-                {m === 'day' ? 'Jour' : m === 'week' ? 'Semaine' : 'Mois'}
+                {m === 'day' ? 'Jour' : m === 'week' ? 'Semaine' : m === 'month' ? 'Mois' : 'Calendrier'}
               </button>
             ))}
           </div>
@@ -1417,6 +1618,78 @@ export default function AdminPage() {
               </div>
             </div>
           )}
+
+          {weekViewMode === 'calendar' && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button onClick={() => (month === 0 ? (setYear((y) => y - 1), setMonth(11)) : setMonth((m) => m - 1))} className="px-2 py-1 border rounded">←</button>
+                <div className="font-semibold">{MONTHS_FR[month]} {year}</div>
+                <button onClick={() => (month === 11 ? (setYear((y) => y + 1), setMonth(0)) : setMonth((m) => m + 1))} className="px-2 py-1 border rounded">→</button>
+                <button type="button" onClick={exportVueSemainePdf} className="ml-auto px-3 py-2 bg-rose-700 text-white rounded-lg text-sm">
+                  📄 Exporter PDF
+                </button>
+              </div>
+              <div className="overflow-x-auto border rounded-lg">
+                <table className="w-auto text-sm" style={{ minWidth: calendarTableMinWidth }}>
+                  <thead>
+                    <tr className="bg-gray-100">
+                      <th className="p-2 text-left">Jour</th>
+                      {calendarEmployees.map((e) => <th key={e.id} className="p-2">{e.name}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {days.map((d) => {
+                      const wd = getDayOfWeek(d)
+                      const dKey = formatDate(d)
+                      const holidayName = holidayMap[dKey]
+                      const isSaturday = wd === 5
+                      const isSunday = wd === 6
+                      const isHoliday = Boolean(holidayName)
+                      const rowClass = isHoliday
+                        ? 'bg-red-100/80 border-l-4 border-red-400'
+                        : isSunday
+                          ? 'bg-red-100/70 border-l-4 border-red-300'
+                          : isSaturday
+                            ? 'bg-violet-100/70 border-l-4 border-violet-300'
+                            : ''
+                      return (
+                        <tr key={d.toISOString()} className={rowClass}>
+                          <td className="p-2 whitespace-nowrap">
+                            <span className="inline-flex flex-wrap items-center gap-1.5 align-middle">
+                              <span>{DAYS_FR[wd]} {d.getDate()}</span>
+                              {holidayName && (
+                                <span className="inline-block max-w-[140px] truncate text-[10px] font-semibold px-1.5 py-0.5 rounded bg-red-100 text-red-700 align-middle" title={holidayName}>
+                                  {holidayName}
+                                </span>
+                              )}
+                            </span>
+                          </td>
+                          {calendarEmployees.map((e) => {
+                            const shiftM = shiftById[getShiftIdForDate(e.id, d, 'MATIN', data.patternCells, data.overrides, cycleStart, reposShift.id)]
+                            const shiftA = shiftById[getShiftIdForDate(e.id, d, 'APREM', data.patternCells, data.overrides, cycleStart, reposShift.id)]
+                            return (
+                              <td key={e.id} className="p-2 align-top">
+                                <div className="flex flex-col gap-1 items-stretch">
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold border border-amber-200/80" style={{ backgroundColor: shiftM?.bgColor, color: shiftM?.fgColor }}>
+                                    <span className="opacity-70 mr-0.5">M</span>
+                                    {shiftM?.shortCode}
+                                  </span>
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold border border-sky-200/80" style={{ backgroundColor: shiftA?.bgColor, color: shiftA?.fgColor }}>
+                                    <span className="opacity-70 mr-0.5">A</span>
+                                    {shiftA?.shortCode}
+                                  </span>
+                                </div>
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1515,7 +1788,7 @@ export default function AdminPage() {
                 <tr className="bg-gray-100 text-left">
                   <th className="p-3 font-medium text-gray-700">Employée</th>
                   <th className="p-3 font-medium text-gray-700 min-w-[220px]">Total</th>
-                  <th className="p-3 font-medium text-gray-700">Par type de turno</th>
+                  <th className="p-3 font-medium text-gray-700">Par type de créneau</th>
                   <th className="p-3 font-medium text-gray-700 text-right">Repos</th>
                 </tr>
               </thead>
@@ -1685,7 +1958,7 @@ export default function AdminPage() {
                                   className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-sky-50 border border-sky-200/80"
                                   style={{ backgroundColor: shiftA?.bgColor, color: shiftA?.fgColor }}
                                 >
-                                  <span className="opacity-70 mr-0.5">T</span>
+                                  <span className="opacity-70 mr-0.5">A</span>
                                   {shiftA?.shortCode}
                                 </button>
                               </div>
@@ -1711,7 +1984,7 @@ export default function AdminPage() {
             <input placeholder="Nom" className="border rounded px-2 py-1" value={newEmp.name} onChange={(e) => setNewEmp({ ...newEmp, name: e.target.value })} />
             <input type="color" className="h-9" value={newEmp.color} onChange={(e) => setNewEmp({ ...newEmp, color: e.target.value })} />
             <input placeholder="email (optionnel)" className="border rounded px-2 py-1" value={newEmp.email} onChange={(e) => setNewEmp({ ...newEmp, email: e.target.value })} />
-            <input placeholder="mot de passe temporaire" className="border rounded px-2 py-1" value={newEmp.password} onChange={(e) => setNewEmp({ ...newEmp, password: e.target.value })} />
+            <input placeholder="code temporaire" className="border rounded px-2 py-1" value={newEmp.password} onChange={(e) => setNewEmp({ ...newEmp, password: e.target.value })} />
             <button type="button" className="px-3 py-2 bg-blue-600 text-white rounded" onClick={async () => {
               const r = await fetch('/api/admin/employees', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newEmp) })
               const body = await r.json().catch(() => ({})) as { error?: string }
@@ -1725,7 +1998,7 @@ export default function AdminPage() {
             <button type="button" className="px-3 py-2 border rounded text-sm" onClick={() => void reloadScheduleData()}>Rafraîchir</button>
           </div>
           {data.employees.map((e) => (
-            <div key={e.id} className="border rounded-lg p-3 flex gap-3 items-center">
+            <div key={e.id} className="border rounded-lg p-3 flex flex-wrap gap-3 items-end">
               <input className="border rounded px-2 py-1" defaultValue={e.name} onBlur={async (ev) => {
                 const name = ev.target.value
                 setData({ ...data, employees: data.employees.map((x) => x.id === e.id ? { ...x, name } : x) })
@@ -1736,6 +2009,54 @@ export default function AdminPage() {
                 setData({ ...data, employees: data.employees.map((x) => x.id === e.id ? { ...x, color } : x) })
                 await fetch('/api/admin/employees', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: e.id, name: e.name, color }) })
               }} />
+              <input
+                type="email"
+                placeholder="email d'acces"
+                className="border rounded px-2 py-1 min-w-[230px]"
+                value={employeeAccessDrafts[e.id]?.email ?? ''}
+                onChange={(ev) =>
+                  setEmployeeAccessDrafts((prev) => ({
+                    ...prev,
+                    [e.id]: { email: ev.target.value, password: prev[e.id]?.password ?? '' },
+                  }))
+                }
+              />
+              <input
+                type="password"
+                placeholder="nouveau code"
+                className="border rounded px-2 py-1 min-w-[190px]"
+                value={employeeAccessDrafts[e.id]?.password ?? ''}
+                onChange={(ev) =>
+                  setEmployeeAccessDrafts((prev) => ({
+                    ...prev,
+                    [e.id]: { email: prev[e.id]?.email ?? e.user?.email ?? '', password: ev.target.value },
+                  }))
+                }
+              />
+              <button className="px-3 py-2 text-sm border rounded" onClick={async () => {
+                const access = employeeAccessDrafts[e.id] ?? { email: e.user?.email ?? '', password: '' }
+                const r = await fetch('/api/admin/employees', {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    id: e.id,
+                    name: e.name,
+                    color: e.color,
+                    email: access.email,
+                    password: access.password,
+                  }),
+                })
+                const body = await r.json().catch(() => ({})) as { error?: string }
+                if (!r.ok) {
+                  window.alert(typeof body.error === 'string' ? body.error : "Erreur de mise a jour de l'acces")
+                  return
+                }
+                await reloadScheduleData()
+                setEmployeeAccessDrafts((prev) => ({
+                  ...prev,
+                  [e.id]: { email: access.email, password: '' },
+                }))
+              }}>Enregistrer acces</button>
               <button className="ml-auto px-3 py-2 text-sm bg-red-600 text-white rounded" onClick={async () => {
                 setData({ ...data, employees: data.employees.filter((x) => x.id !== e.id) })
                 await fetch('/api/admin/employees', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: e.id }) })
@@ -1784,7 +2105,7 @@ export default function AdminPage() {
               setData({ ...data, shifts: [...data.shifts, created].sort((a, b) => a.order - b.order) })
               setNewShift({ label: '', shortCode: '', bgColor: '#eeeeee', fgColor: '#757575' })
               setNewShiftTime({ debut: '09:00', fin: '12:30' })
-            }}>Ajouter turno</button>
+            }}>Ajouter créneau</button>
           </div>
           {data.shifts.map((s) => (
             <div key={s.id} className="border rounded-lg p-3 flex flex-wrap gap-2 items-end">
@@ -1867,7 +2188,7 @@ export default function AdminPage() {
           }}
           onMouseDown={(e) => e.stopPropagation()}
         >
-          {data.shifts.map((s) => (
+          {pickerShifts.map((s) => (
             <button
               key={s.id}
               type="button"

@@ -7,5 +7,5 @@ export default async function HomePage() {
   if (!session) redirect('/login')
   const role = (session.user as any).role
   if (role === 'admin') redirect('/admin')
-  redirect('/mon-horaire')
+  redirect('/admin?tab=calendar')
 }

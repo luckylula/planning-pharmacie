@@ -8,17 +8,38 @@ export const authOptions: NextAuthOptions = {
     CredentialsProvider({
       name: 'credentials',
       credentials: {
+        employeeId: { label: 'Employe', type: 'text' },
+        code: { label: 'Code', type: 'password' },
         email: { label: 'Email', type: 'email' },
         password: { label: 'Mot de passe', type: 'password' },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
-          include: { employee: true },
-        })
+        const employeeId = typeof credentials?.employeeId === 'string' ? credentials.employeeId.trim() : ''
+        const code = typeof credentials?.code === 'string' ? credentials.code : ''
+        const email = typeof credentials?.email === 'string' ? credentials.email.trim().toLowerCase() : ''
+        const password = typeof credentials?.password === 'string' ? credentials.password : ''
+
+        let user = null as Awaited<ReturnType<typeof prisma.user.findUnique>>
+        let secret = ''
+
+        if (employeeId && code) {
+          user = await prisma.user.findUnique({
+            where: { employeeId },
+            include: { employee: true },
+          })
+          secret = code
+        } else if (email && password) {
+          user = await prisma.user.findUnique({
+            where: { email },
+            include: { employee: true },
+          })
+          secret = password
+        } else {
+          return null
+        }
+
         if (!user) return null
-        const valid = await bcrypt.compare(credentials.password, user.password)
+        const valid = await bcrypt.compare(secret, user.password)
         if (!valid) return null
         return {
           id: user.id,

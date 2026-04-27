@@ -5,12 +5,15 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
-  if (!session || (session.user as any).role !== 'admin') {
+  if (!session) {
     return NextResponse.json({ error: 'Non autorise' }, { status: 401 })
   }
 
   const [employees, shifts, patternCells, overrides, cycleConfig] = await Promise.all([
-    prisma.employee.findMany({ orderBy: { order: 'asc' } }),
+    prisma.employee.findMany({
+      orderBy: { order: 'asc' },
+      include: { user: { select: { email: true, role: true } } },
+    }),
     prisma.shift.findMany({ orderBy: { order: 'asc' } }),
     prisma.patternCell.findMany(),
     prisma.scheduleOverride.findMany(),
