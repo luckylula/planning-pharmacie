@@ -1,6 +1,7 @@
 import { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
+import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 
 export const authOptions: NextAuthOptions = {
@@ -19,7 +20,7 @@ export const authOptions: NextAuthOptions = {
         const email = typeof credentials?.email === 'string' ? credentials.email.trim().toLowerCase() : ''
         const password = typeof credentials?.password === 'string' ? credentials.password : ''
 
-        let user = null as Awaited<ReturnType<typeof prisma.user.findUnique>>
+        let user: Prisma.UserGetPayload<{ include: { employee: true } }> | null = null
         let secret = ''
 
         if (employeeId && code) {
