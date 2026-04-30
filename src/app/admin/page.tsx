@@ -108,6 +108,17 @@ function parseTimeInput(value: string): { hour: number; min: number } | null {
   return { hour, min }
 }
 
+function buildShiftShortCode(label: string): string {
+  const words = label
+    .trim()
+    .toUpperCase()
+    .split(/\s+/)
+    .filter(Boolean)
+  if (words.length === 0) return 'CRN'
+  if (words.length === 1) return words[0].slice(0, 4)
+  return words.slice(0, 3).map((w) => w[0]).join('')
+}
+
 function hexToRgb(hex: string): [number, number, number] {
   const h = hex.replace('#', '').trim()
   if (h.length === 3) {
@@ -252,16 +263,32 @@ export default function AdminPage() {
     return weeks
   }, [monthViewYear, monthViewMonth])
 
+  const orderedEmployees = useMemo(() => {
+    if (!data) return []
+    const norman = data.employees.find((e) => e.name.trim().toLowerCase() === 'norman')
+    const withoutNorman = norman ? data.employees.filter((e) => e.id !== norman.id) : data.employees
+
+    let ordered = withoutNorman
+    if (sessionEmployeeId) {
+      const mine = withoutNorman.find((e) => e.id === sessionEmployeeId)
+      if (mine) {
+        ordered = [mine, ...withoutNorman.filter((e) => e.id !== sessionEmployeeId)]
+      }
+    }
+
+    return norman ? [...ordered, norman] : ordered
+  }, [data, sessionEmployeeId])
+
   const calendarEmployees = useMemo(() => {
     if (!data) return []
-    if (calendarEmployeeFocus === 'all') return data.employees
-    const only = data.employees.find((e) => e.id === calendarEmployeeFocus)
-    return only ? [only] : data.employees
-  }, [data, calendarEmployeeFocus])
+    if (calendarEmployeeFocus === 'all') return orderedEmployees
+    const only = orderedEmployees.find((e) => e.id === calendarEmployeeFocus)
+    return only ? [only] : orderedEmployees
+  }, [data, calendarEmployeeFocus, orderedEmployees])
 
   const calendarTableMinWidth = useMemo(() => {
     // Keep the table compact when one employee is selected.
-    const px = 200 + calendarEmployees.length * 170
+    const px = 200 + calendarEmployees.length * 160
     return `${Math.max(380, px)}px`
   }, [calendarEmployees.length])
 
@@ -491,7 +518,8 @@ export default function AdminPage() {
     URL.revokeObjectURL(url)
   }
 
-  const exportVueSemainePdf = () => {
+  const exportVueSemainePdf = (forcedMode?: WeekViewMode) => {
+    const mode = forcedMode ?? weekViewMode
     const drawPdfFooter = (doc: jsPDF, pw: number, ph: number) => {
       doc.setFontSize(7)
       doc.setTextColor(100, 100, 100)
@@ -519,7 +547,7 @@ export default function AdminPage() {
       return y + h + 1.2
     }
 
-    if (weekViewMode === 'day') {
+    if (mode === 'day') {
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
       const pageW = doc.internal.pageSize.getWidth()
       const pageH = doc.internal.pageSize.getHeight()
@@ -578,7 +606,7 @@ export default function AdminPage() {
       return
     }
 
-    if (weekViewMode === 'week') {
+    if (mode === 'week') {
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
       const pageW = doc.internal.pageSize.getWidth()
       const pageH = doc.internal.pageSize.getHeight()
@@ -656,7 +684,7 @@ export default function AdminPage() {
       return
     }
 
-    if (weekViewMode === 'calendar') {
+    if (mode === 'calendar') {
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
       const pageW = doc.internal.pageSize.getWidth()
       const pageH = doc.internal.pageSize.getHeight()
@@ -994,74 +1022,92 @@ export default function AdminPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-4">
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex gap-2 flex-wrap items-center rounded-2xl border border-slate-200/90 bg-gradient-to-r from-slate-50 via-white to-blue-50/60 p-2 shadow-sm">
         {((isAdmin ?? false)
           ? (['calendar', 'week', 'consult', 'pattern', 'employees', 'shifts'] as Tab[])
           : (['calendar', 'week', 'consult'] as Tab[])
         ).map((t) => (
-          <button key={t} onClick={() => setTab(t)} className={`px-3 py-2 rounded-lg text-sm ${tab === t ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}>
-            {t === 'calendar' ? 'Calendrier' : t === 'week' ? 'Vue semaine' : t === 'consult' ? 'Consulter' : t === 'pattern' ? 'Roulement 2 semaines' : t === 'employees' ? 'Employés' : 'Créneaux'}
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`px-3.5 py-2 rounded-xl text-sm font-semibold tracking-wide transition-all ${
+              tab === t
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                : 'bg-white text-slate-700 border border-slate-200 hover:border-blue-200 hover:bg-blue-50/60'
+            }`}
+          >
+            {t === 'calendar' ? 'Calendrier' : t === 'week' ? 'Vue / imprimable' : t === 'consult' ? 'Consulter' : t === 'pattern' ? 'Roulement 2 semaines' : t === 'employees' ? 'Employés' : 'Créneaux'}
           </button>
         ))}
-        <button onClick={() => signOut({ callbackUrl: '/login' })} className="ml-auto px-3 py-2 bg-gray-900 text-white rounded-lg text-sm">Se deconnecter</button>
+        <button
+          onClick={() => signOut({ callbackUrl: '/login' })}
+          className="ml-auto px-3.5 py-2 bg-slate-900 text-white rounded-xl text-sm font-semibold shadow-sm hover:bg-slate-800 transition-colors"
+        >
+          Se deconnecter
+        </button>
       </div>
 
       {tab === 'calendar' && (
         <div className="space-y-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <button onClick={() => (month === 0 ? (setYear((y) => y - 1), setMonth(11)) : setMonth((m) => m - 1))} className="px-2 py-1 border rounded">←</button>
-            <div className="font-semibold">{MONTHS_FR[month]} {year}</div>
-            <button onClick={() => (month === 11 ? (setYear((y) => y + 1), setMonth(0)) : setMonth((m) => m + 1))} className="px-2 py-1 border rounded">→</button>
-            <div className="ml-auto flex items-center gap-2 flex-wrap">
-              <button
-                type="button"
-                onClick={() => setCalendarEmployeeFocus('all')}
-                className="px-3 py-2 border rounded-lg text-sm"
-              >
-                Voir tous
-              </button>
-              <button type="button" onClick={exportCsv} className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm">⬇ Exporter CSV</button>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-medium text-gray-500 mr-1">Employé</span>
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-gradient-to-r from-white to-slate-50 px-3 py-2 shadow-sm">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 mr-1">Employé</span>
             <button
               type="button"
               onClick={() => setCalendarEmployeeFocus('all')}
-              className={`h-10 min-w-[88px] px-3 rounded-lg border text-sm font-medium transition-colors ${
+              className={`h-10 min-w-[110px] px-3 rounded-xl border text-sm font-semibold transition-all ${
                 calendarEmployeeFocus === 'all'
-                  ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
-                  : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 border-blue-600 text-white shadow-md'
+                  : 'bg-white border-slate-300 text-slate-700 hover:border-blue-200 hover:bg-blue-50/70'
               }`}
             >
               Tous
             </button>
-            {data.employees.map((e) => (
+            {orderedEmployees.map((e) => (
+              (() => {
+                const [r, g, b] = hexToRgb(e.color)
+                const inactiveBg = `rgba(${r}, ${g}, ${b}, 0.16)`
+                return (
               <button
                 key={e.id}
                 type="button"
                 onClick={() => setCalendarEmployeeFocus(e.id)}
-                className={`h-10 min-w-[96px] px-3 rounded-lg border text-sm font-medium transition-colors ${
+                className={`h-10 min-w-[110px] px-3 rounded-xl border text-sm font-semibold transition-all ${
                   calendarEmployeeFocus === e.id
-                    ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
-                    : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                    ? 'text-white border-transparent shadow-md'
+                    : 'border-transparent text-slate-800 shadow-sm hover:shadow-md'
                 }`}
+                style={calendarEmployeeFocus === e.id ? { backgroundColor: e.color } : { backgroundColor: inactiveBg }}
                 title={`Afficher la colonne de ${e.name}`}
               >
-                {e.name}
+                <span>{e.name}</span>
                 {sessionEmployeeId === e.id ? ' *' : ''}
               </button>
+                )
+              })()
             ))}
           </div>
+          <div className="rounded-xl border border-slate-200 bg-white/90 px-3 py-3 shadow-sm space-y-2">
+            <div className="flex items-center justify-center gap-3">
+              <button onClick={() => (month === 0 ? (setYear((y) => y - 1), setMonth(11)) : setMonth((m) => m - 1))} className="px-3 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50">←</button>
+              <div className="text-2xl md:text-3xl font-bold text-slate-800 tracking-wide min-w-[240px] text-center">
+                {MONTHS_FR[month]} {year}
+              </div>
+              <button onClick={() => (month === 11 ? (setYear((y) => y + 1), setMonth(0)) : setMonth((m) => m + 1))} className="px-3 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50">→</button>
+            </div>
+            <div className="flex items-center justify-end gap-2 flex-wrap">
+              <button type="button" onClick={() => exportVueSemainePdf('calendar')} className="px-3 py-2 bg-rose-700 text-white rounded-lg text-sm font-semibold shadow-sm hover:bg-rose-800">📄 Exporter PDF</button>
+              <button type="button" onClick={exportCsv} className="px-3 py-2 border border-emerald-600 text-emerald-700 rounded-lg text-sm hover:bg-emerald-50" title="Export avancé (technique)">CSV (advanced)</button>
+            </div>
+          </div>
           <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-            <table className="w-auto text-sm" style={{ minWidth: calendarTableMinWidth }}>
+            <table className="w-auto table-fixed text-sm" style={{ minWidth: calendarTableMinWidth }}>
               <thead>
                 <tr className="bg-slate-100/90">
-                  <th className="p-2 text-left border-b border-r border-slate-200">Jour</th>
+                  <th className="w-[112px] p-2 text-left border-b border-r border-slate-200">Jour</th>
                   {calendarEmployees.map((e) => (
                     <th
                       key={e.id}
-                      className={`p-2 select-none border-b border-r last:border-r-0 border-slate-200 ${
+                      className={`w-[160px] p-2 select-none border-b border-r last:border-r-0 border-slate-200 ${
                         calendarEmployeeFocus === e.id ? 'bg-blue-100/80 text-blue-800' : ''
                       }`}
                     >
@@ -1088,7 +1134,7 @@ export default function AdminPage() {
                         : ''
                   return (
                     <tr key={d.toISOString()} className={rowClass}>
-                      <td className="p-2 whitespace-nowrap border-b border-r border-slate-200 align-top">
+                      <td className="w-[112px] p-2 whitespace-nowrap border-b border-r border-slate-200 align-top">
                         <span className="inline-flex flex-wrap items-center gap-1.5 align-middle">
                           {(isHoliday || isSaturday || isSunday) && (
                             <span
@@ -1117,7 +1163,7 @@ export default function AdminPage() {
                         const shiftA = shiftById[getShiftIdForDate(e.id, d, 'APREM', data.patternCells, data.overrides, cycleStart, reposShift.id)]
                         const hasOverride = data.overrides.some((o) => formatDate(new Date(o.date)) === ds && o.employeeId === e.id)
                         return (
-                          <td key={e.id} className="p-2 relative align-top border-b border-r last:border-r-0 border-slate-200">
+                          <td key={e.id} className="w-[160px] p-2 relative align-top border-b border-r last:border-r-0 border-slate-200">
                             <div className="flex flex-col gap-0 items-stretch rounded-md overflow-hidden border border-slate-200/80">
                               <button
                                 type="button"
@@ -1249,7 +1295,7 @@ export default function AdminPage() {
                 >
                   →
                 </button>
-                <button type="button" onClick={exportVueSemainePdf} className="ml-auto px-3 py-2 bg-rose-700 text-white rounded-lg text-sm">
+                <button type="button" onClick={() => exportVueSemainePdf('day')} className="ml-auto px-3 py-2 bg-rose-700 text-white rounded-lg text-sm">
                   📄 Exporter PDF
                 </button>
               </div>
@@ -1280,6 +1326,7 @@ export default function AdminPage() {
                   const matinCount = matinRows.length
                   const apresCount = apresRows.length
                   const isSundayClosed = wd === 6 && matinCount === 0 && apresCount === 0
+                  const isSaturdayAfternoonClosed = wd === 5
                   const renderChip = (emp: Employee, sh: Shift | undefined) => (
                     <div
                       key={emp.id}
@@ -1317,9 +1364,13 @@ export default function AdminPage() {
                             <div className="h-px bg-gray-200/90 shrink-0" />
                             <div className="flex-1 flex flex-col bg-sky-50/70 px-2 pt-2 pb-1.5 min-h-[120px]">
                               <div className="text-[10px] font-medium text-sky-900/70 mb-1.5">14h00–19h15</div>
-                              <div className="flex flex-col gap-1.5">
-                                {apresRows.map(({ emp, shA }) => renderChip(emp, shA))}
-                              </div>
+                              {isSaturdayAfternoonClosed ? (
+                                <div className="flex-1 flex items-center justify-center text-xs text-gray-400 font-medium">Fermé</div>
+                              ) : (
+                                <div className="flex flex-col gap-1.5">
+                                  {apresRows.map(({ emp, shA }) => renderChip(emp, shA))}
+                                </div>
+                              )}
                             </div>
                             {reposOnly.length > 0 && (
                               <div className="px-2 py-1.5 border-t border-gray-100 bg-gray-50/40 space-y-0.5">
@@ -1371,7 +1422,7 @@ export default function AdminPage() {
                 >
                   →
                 </button>
-                <button type="button" onClick={exportVueSemainePdf} className="ml-auto px-3 py-2 bg-rose-700 text-white rounded-lg text-sm">
+                <button type="button" onClick={() => exportVueSemainePdf('week')} className="ml-auto px-3 py-2 bg-rose-700 text-white rounded-lg text-sm">
                   📄 Exporter PDF
                 </button>
               </div>
@@ -1401,6 +1452,7 @@ export default function AdminPage() {
                     const matinCount = matinRows.length
                     const apresCount = apresRows.length
                     const isSundayClosed = wd === 6 && matinCount === 0 && apresCount === 0
+                    const isSaturdayAfternoonClosed = wd === 5
 
                     const renderChip = (emp: Employee, sh: Shift | undefined) => (
                       <div
@@ -1451,9 +1503,13 @@ export default function AdminPage() {
                               <div className="h-px bg-gray-200/90 shrink-0" />
                               <div className="flex-1 flex flex-col bg-sky-50/70 px-2 pt-2 pb-1.5 min-h-[120px]">
                                 <div className="text-[10px] font-medium text-sky-900/70 mb-1.5">14h00–19h15</div>
-                                <div className="flex flex-col gap-1.5">
-                                  {apresRows.map(({ emp, shA }) => renderChip(emp, shA))}
-                                </div>
+                                {isSaturdayAfternoonClosed ? (
+                                  <div className="flex-1 flex items-center justify-center text-xs text-gray-400 font-medium">Fermé</div>
+                                ) : (
+                                  <div className="flex flex-col gap-1.5">
+                                    {apresRows.map(({ emp, shA }) => renderChip(emp, shA))}
+                                  </div>
+                                )}
                               </div>
                               {reposOnly.length > 0 && (
                                 <div className="px-2 py-1.5 border-t border-gray-100 bg-gray-50/40 space-y-0.5">
@@ -1514,7 +1570,7 @@ export default function AdminPage() {
                 >
                   →
                 </button>
-                <button type="button" onClick={exportVueSemainePdf} className="ml-auto px-3 py-2 bg-rose-700 text-white rounded-lg text-sm">
+                <button type="button" onClick={() => exportVueSemainePdf('month')} className="ml-auto px-3 py-2 bg-rose-700 text-white rounded-lg text-sm">
                   📄 Exporter PDF
                 </button>
               </div>
@@ -1550,6 +1606,7 @@ export default function AdminPage() {
                           const matinCount = matinRows.length
                           const apresCount = apresRows.length
                           const isSundayClosed = wd === 6 && matinCount === 0 && apresCount === 0
+                          const isSaturdayAfternoonClosed = wd === 5
                           const monthChip = (emp: Employee, sh: Shift | undefined) => (
                             <div
                               key={emp.id}
@@ -1603,7 +1660,11 @@ export default function AdminPage() {
                                     <div className="h-px bg-gray-200 shrink-0" />
                                     <div className="flex-1 flex flex-col bg-sky-50/70 px-2 pt-2 pb-1.5 min-h-[56px]">
                                       <div className="text-[10px] font-medium text-sky-900/70 mb-1.5">14h–19h</div>
-                                      <div className="flex flex-col gap-1.5">{apresRows.map(({ emp, shA }) => monthChip(emp, shA))}</div>
+                                      {isSaturdayAfternoonClosed ? (
+                                        <div className="flex-1 flex items-center justify-center text-xs text-gray-400 font-medium">Fermé</div>
+                                      ) : (
+                                        <div className="flex flex-col gap-1.5">{apresRows.map(({ emp, shA }) => monthChip(emp, shA))}</div>
+                                      )}
                                     </div>
                                   </>
                                 )}
@@ -1625,7 +1686,7 @@ export default function AdminPage() {
                 <button onClick={() => (month === 0 ? (setYear((y) => y - 1), setMonth(11)) : setMonth((m) => m - 1))} className="px-2 py-1 border rounded">←</button>
                 <div className="font-semibold">{MONTHS_FR[month]} {year}</div>
                 <button onClick={() => (month === 11 ? (setYear((y) => y + 1), setMonth(0)) : setMonth((m) => m + 1))} className="px-2 py-1 border rounded">→</button>
-                <button type="button" onClick={exportVueSemainePdf} className="ml-auto px-3 py-2 bg-rose-700 text-white rounded-lg text-sm">
+                <button type="button" onClick={() => exportVueSemainePdf('calendar')} className="ml-auto px-3 py-2 bg-rose-700 text-white rounded-lg text-sm">
                   📄 Exporter PDF
                 </button>
               </div>
@@ -2069,8 +2130,18 @@ export default function AdminPage() {
       {tab === 'shifts' && (
         <div className="space-y-3">
           <div className="flex flex-wrap gap-2 items-end">
-            <input placeholder="Libelle" className="border rounded px-2 py-1" value={newShift.label || ''} onChange={(e) => setNewShift({ ...newShift, label: e.target.value })} />
-            <input placeholder="Code" className="border rounded px-2 py-1" value={newShift.shortCode || ''} onChange={(e) => setNewShift({ ...newShift, shortCode: e.target.value })} />
+            <input
+              placeholder="Nom du créneau (ex: Matin pharmacie)"
+              className="border rounded px-2 py-1 min-w-[240px]"
+              value={newShift.label || ''}
+              onChange={(e) => setNewShift({ ...newShift, label: e.target.value })}
+            />
+            <input
+              placeholder="Code court (optionnel, ex: MAT)"
+              className="border rounded px-2 py-1 min-w-[210px]"
+              value={newShift.shortCode || ''}
+              onChange={(e) => setNewShift({ ...newShift, shortCode: e.target.value.toUpperCase() })}
+            />
             <label className="flex flex-col gap-0.5 text-xs text-gray-600">
               <span>Début</span>
               <input type="time" className="border rounded px-2 py-1" value={newShiftTime.debut} onChange={(e) => setNewShiftTime((t) => ({ ...t, debut: e.target.value }))} />
@@ -2090,7 +2161,7 @@ export default function AdminPage() {
               }
               const payload = {
                 label: newShift.label || '',
-                shortCode: newShift.shortCode || '',
+                shortCode: (newShift.shortCode || '').trim() || buildShiftShortCode(newShift.label || ''),
                 startHour: sd.hour,
                 startMin: sd.min,
                 endHour: ed.hour,
@@ -2106,6 +2177,9 @@ export default function AdminPage() {
               setNewShift({ label: '', shortCode: '', bgColor: '#eeeeee', fgColor: '#757575' })
               setNewShiftTime({ debut: '09:00', fin: '12:30' })
             }}>Ajouter créneau</button>
+          </div>
+          <div className="text-xs text-gray-500">
+            Libellé = nom complet affiché dans le planning. Code = version courte affichée dans les cellules (si vide, générée automatiquement).
           </div>
           {data.shifts.map((s) => (
             <div key={s.id} className="border rounded-lg p-3 flex flex-wrap gap-2 items-end">

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getDayOfWeek, isSaturdayAfternoonSlot } from '@/lib/schedule'
 import { Slot } from '@prisma/client'
 
 export async function POST(req: Request) {
@@ -15,6 +16,9 @@ export async function POST(req: Request) {
   }
   const slot = slotRaw === 'APREM' ? Slot.APREM : Slot.MATIN
   const d = new Date(date)
+  if (isSaturdayAfternoonSlot(getDayOfWeek(d), slot)) {
+    return NextResponse.json({ error: 'La pharmacie est fermee le samedi apres-midi' }, { status: 400 })
+  }
   const override = await prisma.scheduleOverride.upsert({
     where: { date_employeeId_slot: { date: d, employeeId, slot } },
     update: { shiftId },

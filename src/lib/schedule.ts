@@ -15,6 +15,9 @@ export const getDayOfWeek = (d: Date): number => {
   return w === 0 ? 6 : w - 1
 }
 
+export const isSaturdayAfternoonSlot = (weekday: number, slot: Slot): boolean =>
+  weekday === 5 && slot === 'APREM'
+
 export const getDaysInMonth = (year: number, month: number): Date[] => {
   const total = new Date(year, month + 1, 0).getDate()
   return Array.from({ length: total }, (_, i) => new Date(year, month, i + 1))
@@ -36,7 +39,7 @@ export function getShiftIdForDate(
 ): string {
   const weekday = getDayOfWeek(date)
   // Regle metier: samedi apres-midi ferme (affiche Repos).
-  if (weekday === 5 && slot === 'APREM') return reposShiftId
+  if (isSaturdayAfternoonSlot(weekday, slot)) return reposShiftId
 
   const dateStr = formatDate(date)
   const override = overrides.find(
