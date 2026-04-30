@@ -1032,8 +1032,8 @@ export default function AdminPage() {
             onClick={() => setTab(t)}
             className={`px-3.5 py-2 rounded-xl text-sm font-semibold tracking-wide transition-all ${
               tab === t
-                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
-                : 'bg-white text-slate-700 border border-slate-200 hover:border-blue-200 hover:bg-blue-50/60'
+                ? 'bg-blue-700 text-white shadow-md border border-blue-800'
+                : 'bg-blue-100 text-blue-900 border border-blue-300 shadow-sm hover:bg-gradient-to-b hover:from-blue-800 hover:to-blue-900 hover:text-white hover:border-blue-900'
             }`}
           >
             {t === 'calendar' ? 'Calendrier' : t === 'week' ? 'Vue / imprimable' : t === 'consult' ? 'Consulter' : t === 'pattern' ? 'Roulement 2 semaines' : t === 'employees' ? 'Employés' : 'Créneaux'}
@@ -1255,7 +1255,11 @@ export default function AdminPage() {
                 key={m}
                 type="button"
                 onClick={() => setWeekViewMode(m)}
-                className={`px-3 py-1.5 rounded-lg text-sm ${weekViewMode === m ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+                className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+                  weekViewMode === m
+                    ? 'bg-blue-800 text-white border border-blue-900 shadow-sm'
+                    : 'bg-blue-100 text-blue-900 border border-blue-300 shadow-sm hover:bg-blue-200'
+                }`}
               >
                 {m === 'day' ? 'Jour' : m === 'week' ? 'Semaine' : m === 'month' ? 'Mois' : 'Calendrier'}
               </button>
@@ -1325,8 +1329,23 @@ export default function AdminPage() {
                   const apresRows = rows.filter((r) => coversWeekApresMidi(r.shA))
                   const matinCount = matinRows.length
                   const apresCount = apresRows.length
+                  const dayHoliday = holidayMap[formatDate(dayDate)]
                   const isSundayClosed = wd === 6 && matinCount === 0 && apresCount === 0
                   const isSaturdayAfternoonClosed = wd === 5
+                  const specialStripeClass = dayHoliday
+                    ? 'bg-amber-100/85'
+                    : wd === 6
+                      ? 'bg-rose-100/75'
+                      : wd === 5
+                        ? 'bg-violet-100/75'
+                        : ''
+                  const specialDayFrameClass = dayHoliday
+                    ? 'bg-amber-100/50 border-l-4 border-amber-500'
+                    : wd === 6
+                      ? 'bg-rose-100/45 border-l-4 border-rose-400'
+                      : wd === 5
+                        ? 'bg-violet-100/45 border-l-4 border-violet-400'
+                        : ''
                   const renderChip = (emp: Employee, sh: Shift | undefined) => (
                     <div
                       key={emp.id}
@@ -1342,9 +1361,13 @@ export default function AdminPage() {
                     </div>
                   )
                   return (
-                    <div className="flex flex-col rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden min-h-[380px]">
+                    <div className={`flex flex-col rounded-lg border border-gray-200 shadow-sm overflow-hidden min-h-[380px] ${specialDayFrameClass || 'bg-white'}`}>
                       <div
-                        className={`text-center py-2 px-1 border-b border-gray-100 ${isToday ? 'bg-blue-100' : 'bg-gray-50'} ${wd === 6 ? 'text-red-600' : wd === 5 ? 'text-purple-600' : 'text-gray-900'}`}
+                        className={`text-center py-2 px-1 border-b border-gray-100 ${
+                          isToday
+                            ? 'bg-blue-100'
+                            : specialStripeClass || 'bg-gray-50'
+                        } ${wd === 6 ? 'text-red-600' : wd === 5 ? 'text-purple-600' : 'text-gray-900'}`}
                       >
                         <div className="text-xs font-semibold uppercase tracking-wide">{dayAbbr}</div>
                         <div className="text-base font-bold leading-tight">{dayDate.getDate()}</div>
@@ -1355,14 +1378,14 @@ export default function AdminPage() {
                         )}
                         {!isSundayClosed && (
                           <>
-                            <div className="flex-1 flex flex-col bg-amber-50/70 px-2 pt-2 pb-1.5 min-h-[120px]">
+                            <div className={`flex-1 flex flex-col px-2 pt-2 pb-1.5 min-h-[120px] ${specialStripeClass || 'bg-amber-50/70'}`}>
                               <div className="text-[10px] font-medium text-amber-900/70 mb-1.5">Matin 8h30–12h15</div>
                               <div className="flex flex-col gap-1.5">
                                 {matinRows.map(({ emp, shM }) => renderChip(emp, shM))}
                               </div>
                             </div>
                             <div className="h-px bg-gray-200/90 shrink-0" />
-                            <div className="flex-1 flex flex-col bg-sky-50/70 px-2 pt-2 pb-1.5 min-h-[120px]">
+                            <div className={`flex-1 flex flex-col px-2 pt-2 pb-1.5 min-h-[120px] ${specialStripeClass || 'bg-sky-50/70'}`}>
                               <div className="text-[10px] font-medium text-sky-900/70 mb-1.5">14h00–19h15</div>
                               {isSaturdayAfternoonClosed ? (
                                 <div className="flex-1 flex items-center justify-center text-xs text-gray-400 font-medium">Fermé</div>
@@ -1453,6 +1476,20 @@ export default function AdminPage() {
                     const apresCount = apresRows.length
                     const isSundayClosed = wd === 6 && matinCount === 0 && apresCount === 0
                     const isSaturdayAfternoonClosed = wd === 5
+                    const specialStripeClass = weekHoliday
+                      ? 'bg-amber-100/85'
+                      : wd === 6
+                        ? 'bg-rose-100/75'
+                        : wd === 5
+                          ? 'bg-violet-100/75'
+                          : ''
+                    const specialDayFrameClass = weekHoliday
+                      ? 'bg-amber-100/50 border-l-4 border-amber-500'
+                      : wd === 6
+                        ? 'bg-rose-100/45 border-l-4 border-rose-400'
+                        : wd === 5
+                          ? 'bg-violet-100/45 border-l-4 border-violet-400'
+                          : ''
 
                     const renderChip = (emp: Employee, sh: Shift | undefined) => (
                       <div
@@ -1472,10 +1509,14 @@ export default function AdminPage() {
                     return (
                       <div
                         key={i}
-                        className="flex flex-col rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden min-h-[380px]"
+                        className={`flex flex-col rounded-lg border border-gray-200 shadow-sm overflow-hidden min-h-[380px] ${specialDayFrameClass || 'bg-white'}`}
                       >
                         <div
-                          className={`text-center py-2 px-1 border-b border-gray-100 ${isToday ? 'bg-blue-100' : 'bg-gray-50'} ${wd === 6 ? 'text-red-600' : wd === 5 ? 'text-purple-600' : 'text-gray-900'}`}
+                          className={`text-center py-2 px-1 border-b border-gray-100 ${
+                            isToday
+                              ? 'bg-blue-100'
+                              : specialStripeClass || 'bg-gray-50'
+                          } ${wd === 6 ? 'text-red-600' : wd === 5 ? 'text-purple-600' : 'text-gray-900'}`}
                         >
                           <div className="text-xs font-semibold uppercase tracking-wide">{dayAbbr}</div>
                           <div className="text-base font-bold leading-tight">{dayDate.getDate()}</div>
@@ -1494,14 +1535,14 @@ export default function AdminPage() {
                           )}
                           {!isSundayClosed && (
                             <>
-                              <div className="flex-1 flex flex-col bg-amber-50/70 px-2 pt-2 pb-1.5 min-h-[120px]">
+                              <div className={`flex-1 flex flex-col px-2 pt-2 pb-1.5 min-h-[120px] ${specialStripeClass || 'bg-amber-50/70'}`}>
                                 <div className="text-[10px] font-medium text-amber-900/70 mb-1.5">Matin 8h30–12h15</div>
                                 <div className="flex flex-col gap-1.5">
                                   {matinRows.map(({ emp, shM }) => renderChip(emp, shM))}
                                 </div>
                               </div>
                               <div className="h-px bg-gray-200/90 shrink-0" />
-                              <div className="flex-1 flex flex-col bg-sky-50/70 px-2 pt-2 pb-1.5 min-h-[120px]">
+                              <div className={`flex-1 flex flex-col px-2 pt-2 pb-1.5 min-h-[120px] ${specialStripeClass || 'bg-sky-50/70'}`}>
                                 <div className="text-[10px] font-medium text-sky-900/70 mb-1.5">14h00–19h15</div>
                                 {isSaturdayAfternoonClosed ? (
                                   <div className="flex-1 flex items-center justify-center text-xs text-gray-400 font-medium">Fermé</div>
@@ -1607,6 +1648,24 @@ export default function AdminPage() {
                           const apresCount = apresRows.length
                           const isSundayClosed = wd === 6 && matinCount === 0 && apresCount === 0
                           const isSaturdayAfternoonClosed = wd === 5
+                          const specialStripeClass = inMonth
+                            ? cellHoliday
+                              ? 'bg-amber-100/85'
+                              : wd === 6
+                                ? 'bg-rose-100/75'
+                                : wd === 5
+                                  ? 'bg-violet-100/75'
+                                  : ''
+                            : ''
+                          const specialDayFrameClass = inMonth
+                            ? cellHoliday
+                              ? 'bg-amber-100/50 border-l-4 border-amber-500'
+                              : wd === 6
+                                ? 'bg-rose-100/45 border-l-4 border-rose-400'
+                                : wd === 5
+                                  ? 'bg-violet-100/45 border-l-4 border-violet-400'
+                                  : ''
+                            : ''
                           const monthChip = (emp: Employee, sh: Shift | undefined) => (
                             <div
                               key={emp.id}
@@ -1626,7 +1685,7 @@ export default function AdminPage() {
                               key={cellKey}
                               className={`flex flex-col rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden min-h-[200px] ${
                                 isToday ? 'ring-2 ring-blue-500 ring-offset-1' : ''
-                              } ${cellHoliday ? 'border-red-100' : ''}`}
+                              } ${cellHoliday ? 'border-red-100' : ''} ${specialDayFrameClass}`}
                             >
                               <div
                                 className={`text-center py-2 px-1 border-b shrink-0 ${
@@ -1653,12 +1712,12 @@ export default function AdminPage() {
                                 )}
                                 {!isSundayClosed && (
                                   <>
-                                    <div className="flex-1 flex flex-col bg-amber-50/70 px-2 pt-2 pb-1.5 min-h-[56px]">
+                                    <div className={`flex-1 flex flex-col px-2 pt-2 pb-1.5 min-h-[56px] ${specialStripeClass || 'bg-amber-50/70'}`}>
                                       <div className="text-[10px] font-medium text-amber-900/70 mb-1.5">Matin</div>
                                       <div className="flex flex-col gap-1.5">{matinRows.map(({ emp, shM }) => monthChip(emp, shM))}</div>
                                     </div>
                                     <div className="h-px bg-gray-200 shrink-0" />
-                                    <div className="flex-1 flex flex-col bg-sky-50/70 px-2 pt-2 pb-1.5 min-h-[56px]">
+                                    <div className={`flex-1 flex flex-col px-2 pt-2 pb-1.5 min-h-[56px] ${specialStripeClass || 'bg-sky-50/70'}`}>
                                       <div className="text-[10px] font-medium text-sky-900/70 mb-1.5">14h–19h</div>
                                       {isSaturdayAfternoonClosed ? (
                                         <div className="flex-1 flex items-center justify-center text-xs text-gray-400 font-medium">Fermé</div>
@@ -1707,11 +1766,11 @@ export default function AdminPage() {
                       const isSunday = wd === 6
                       const isHoliday = Boolean(holidayName)
                       const rowClass = isHoliday
-                        ? 'bg-red-100/80 border-l-4 border-red-400'
+                        ? 'bg-amber-100/85 border-l-4 border-amber-500'
                         : isSunday
-                          ? 'bg-red-100/70 border-l-4 border-red-300'
+                          ? 'bg-rose-100/75 border-l-4 border-rose-400'
                           : isSaturday
-                            ? 'bg-violet-100/70 border-l-4 border-violet-300'
+                            ? 'bg-violet-100/75 border-l-4 border-violet-400'
                             : ''
                       return (
                         <tr key={d.toISOString()} className={rowClass}>
@@ -1719,7 +1778,7 @@ export default function AdminPage() {
                             <span className="inline-flex flex-wrap items-center gap-1.5 align-middle">
                               <span>{DAYS_FR[wd]} {d.getDate()}</span>
                               {holidayName && (
-                                <span className="inline-block max-w-[140px] truncate text-[10px] font-semibold px-1.5 py-0.5 rounded bg-red-100 text-red-700 align-middle" title={holidayName}>
+                                <span className="inline-block max-w-[140px] truncate text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-200 text-amber-900 align-middle" title={holidayName}>
                                   {holidayName}
                                 </span>
                               )}
@@ -1761,21 +1820,33 @@ export default function AdminPage() {
             <button
               type="button"
               onClick={() => setConsultMode('week')}
-              className={`px-3 py-1.5 rounded-lg text-sm ${consultMode === 'week' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+              className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+                consultMode === 'week'
+                  ? 'bg-blue-800 text-white border border-blue-900 shadow-sm'
+                  : 'bg-blue-100 text-blue-900 border border-blue-300 shadow-sm hover:bg-blue-200'
+              }`}
             >
               Cette semaine
             </button>
             <button
               type="button"
               onClick={() => setConsultMode('month')}
-              className={`px-3 py-1.5 rounded-lg text-sm ${consultMode === 'month' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+              className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+                consultMode === 'month'
+                  ? 'bg-blue-800 text-white border border-blue-900 shadow-sm'
+                  : 'bg-blue-100 text-blue-900 border border-blue-300 shadow-sm hover:bg-blue-200'
+              }`}
             >
               Ce mois
             </button>
             <button
               type="button"
               onClick={() => setConsultMode('custom')}
-              className={`px-3 py-1.5 rounded-lg text-sm ${consultMode === 'custom' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+              className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+                consultMode === 'custom'
+                  ? 'bg-blue-800 text-white border border-blue-900 shadow-sm'
+                  : 'bg-blue-100 text-blue-900 border border-blue-300 shadow-sm hover:bg-blue-200'
+              }`}
             >
               Période personnalisée
             </button>
@@ -1802,8 +1873,8 @@ export default function AdminPage() {
               </div>
             )}
           </div>
-          <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={exportRecapHeures} className="px-3 py-2 bg-slate-700 text-white rounded-lg text-sm">📊 Récap heures</button>
+          <div className="flex flex-wrap gap-2 justify-end">
+            <button type="button" onClick={exportRecapHeures} className="px-3 py-2 bg-rose-700 text-white rounded-lg text-sm font-semibold shadow-sm hover:bg-rose-800">📊 Exporter Excel</button>
           </div>
           <p className="text-xs text-gray-500">
             Du {formatDate(consultRange.start)} au {formatDate(consultRange.end)} · {consultPeriodDays.length} jour{consultPeriodDays.length === 1 ? '' : 's'}
@@ -1822,21 +1893,22 @@ export default function AdminPage() {
             >
               Toutes
             </button>
-            {data.employees.map((emp) => {
+            {orderedEmployees.map((emp) => {
               const selected = consultEmployeeFilter === emp.id
+              const [r, g, b] = hexToRgb(emp.color)
+              const inactiveBg = `rgba(${r}, ${g}, ${b}, 0.16)`
               return (
                 <button
                   key={emp.id}
                   type="button"
                   onClick={() => setConsultEmployeeFilter(emp.id)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                  className={`inline-flex items-center gap-1.5 min-w-[110px] px-3 py-1.5 rounded-full text-sm font-semibold border transition-all ${
                     selected
                       ? 'text-white border-transparent shadow-sm'
-                      : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200'
+                      : 'text-slate-800 border-transparent shadow-sm hover:shadow-md'
                   }`}
-                  style={selected ? { backgroundColor: emp.color } : undefined}
+                  style={selected ? { backgroundColor: emp.color } : { backgroundColor: inactiveBg }}
                 >
-                  <span className="w-2.5 h-2.5 rounded-full shrink-0 ring-1 ring-white/30" style={{ backgroundColor: emp.color }} />
                   {emp.name}
                 </button>
               )
