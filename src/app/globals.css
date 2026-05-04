@@ -6,7 +6,7 @@
   --surface: #ffffff;
   --surface-muted: #f8fafc;
   --border: #e2e8f0;
-  --ring: #2563eb;
+  --ring: #059669;
 }
 
 @theme inline {
@@ -29,8 +29,8 @@ body {
 }
 
 ::selection {
-  background: #dbeafe;
-  color: #1e3a8a;
+  background: #d1fae5;
+  color: #065f46;
 }
 
 button,

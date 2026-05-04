@@ -420,7 +420,7 @@ export default function AdminPage() {
     return (
       <div className="p-6 max-w-lg space-y-3">
         <p className="text-red-700">{loadError}</p>
-        <button type="button" onClick={() => void reloadScheduleData()} className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg">
+        <button type="button" onClick={() => void reloadScheduleData()} className="px-3 py-2 text-sm bg-emerald-600 text-white rounded-lg">
           Réessayer
         </button>
       </div>
@@ -1022,7 +1022,7 @@ export default function AdminPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-4">
-      <div className="flex gap-2 flex-wrap items-center rounded-2xl border border-slate-200/90 bg-gradient-to-r from-slate-50 via-white to-blue-50/60 p-2 shadow-sm">
+      <div className="flex gap-2 flex-wrap items-center rounded-2xl border border-slate-200/90 bg-gradient-to-r from-slate-50 via-white to-emerald-50/70 p-2 shadow-sm">
         {((isAdmin ?? false)
           ? (['calendar', 'week', 'consult', 'pattern', 'employees', 'shifts'] as Tab[])
           : (['calendar', 'week', 'consult'] as Tab[])
@@ -1032,8 +1032,8 @@ export default function AdminPage() {
             onClick={() => setTab(t)}
             className={`px-3.5 py-2 rounded-xl text-sm font-semibold tracking-wide transition-all ${
               tab === t
-                ? 'bg-blue-700 text-white shadow-md border border-blue-800'
-                : 'bg-blue-100 text-blue-900 border border-blue-300 shadow-sm hover:bg-gradient-to-b hover:from-blue-800 hover:to-blue-900 hover:text-white hover:border-blue-900'
+                ? 'bg-emerald-700 text-white shadow-md border border-emerald-800'
+                : 'bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-sm hover:bg-gradient-to-b hover:from-emerald-800 hover:to-emerald-900 hover:text-white hover:border-emerald-900'
             }`}
           >
             {t === 'calendar' ? 'Calendrier' : t === 'week' ? 'Vue / imprimable' : t === 'consult' ? 'Consulter' : t === 'pattern' ? 'Roulement 2 semaines' : t === 'employees' ? 'Employés' : 'Créneaux'}
@@ -1056,8 +1056,8 @@ export default function AdminPage() {
               onClick={() => setCalendarEmployeeFocus('all')}
               className={`h-10 min-w-[110px] px-3 rounded-xl border text-sm font-semibold transition-all ${
                 calendarEmployeeFocus === 'all'
-                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 border-blue-600 text-white shadow-md'
-                  : 'bg-white border-slate-300 text-slate-700 hover:border-blue-200 hover:bg-blue-50/70'
+                  ? 'bg-gradient-to-r from-emerald-600 to-green-600 border-emerald-600 text-white shadow-md'
+                  : 'bg-white border-slate-300 text-slate-700 hover:border-emerald-200 hover:bg-emerald-50/80'
               }`}
             >
               Tous
@@ -1086,17 +1086,42 @@ export default function AdminPage() {
               })()
             ))}
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white/90 px-3 py-3 shadow-sm space-y-2">
-            <div className="flex items-center justify-center gap-3">
-              <button onClick={() => (month === 0 ? (setYear((y) => y - 1), setMonth(11)) : setMonth((m) => m - 1))} className="px-3 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50">←</button>
-              <div className="text-2xl md:text-3xl font-bold text-slate-800 tracking-wide min-w-[240px] text-center">
+          <div className="flex items-center gap-2 overflow-x-auto rounded-xl border border-slate-200 bg-white/90 px-2 py-1 shadow-sm">
+            <div className="flex min-w-0 flex-1 items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => (month === 0 ? (setYear((y) => y - 1), setMonth(11)) : setMonth((m) => m - 1))}
+                className="shrink-0 rounded-md border border-slate-300 px-2 py-0.5 text-sm text-slate-700 hover:bg-slate-50"
+              >
+                ←
+              </button>
+              <div className="shrink-0 whitespace-nowrap text-center text-lg font-bold tabular-nums tracking-wide text-slate-800 md:text-xl">
                 {MONTHS_FR[month]} {year}
               </div>
-              <button onClick={() => (month === 11 ? (setYear((y) => y + 1), setMonth(0)) : setMonth((m) => m + 1))} className="px-3 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50">→</button>
+              <button
+                type="button"
+                onClick={() => (month === 11 ? (setYear((y) => y + 1), setMonth(0)) : setMonth((m) => m + 1))}
+                className="shrink-0 rounded-md border border-slate-300 px-2 py-0.5 text-sm text-slate-700 hover:bg-slate-50"
+              >
+                →
+              </button>
             </div>
-            <div className="flex items-center justify-end gap-2 flex-wrap">
-              <button type="button" onClick={() => exportVueSemainePdf('calendar')} className="px-3 py-2 bg-rose-700 text-white rounded-lg text-sm font-semibold shadow-sm hover:bg-rose-800">📄 Exporter PDF</button>
-              <button type="button" onClick={exportCsv} className="px-3 py-2 border border-emerald-600 text-emerald-700 rounded-lg text-sm hover:bg-emerald-50" title="Export avancé (technique)">CSV (advanced)</button>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => exportVueSemainePdf('calendar')}
+                className="whitespace-nowrap rounded-md bg-rose-700 px-2.5 py-1 text-xs font-semibold text-white shadow-sm hover:bg-rose-800 md:text-sm"
+              >
+                📄 Exporter PDF
+              </button>
+              <button
+                type="button"
+                onClick={exportCsv}
+                className="whitespace-nowrap rounded-md border border-emerald-600 px-2.5 py-1 text-xs text-emerald-700 hover:bg-emerald-50 md:text-sm"
+                title="Export avancé (technique)"
+              >
+                CSV (advanced)
+              </button>
             </div>
           </div>
           <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -1108,7 +1133,7 @@ export default function AdminPage() {
                     <th
                       key={e.id}
                       className={`w-[160px] p-2 select-none border-b border-r last:border-r-0 border-slate-200 ${
-                        calendarEmployeeFocus === e.id ? 'bg-blue-100/80 text-blue-800' : ''
+                        calendarEmployeeFocus === e.id ? 'bg-emerald-100/80 text-emerald-800' : ''
                       }`}
                     >
                       {e.name}
@@ -1257,8 +1282,8 @@ export default function AdminPage() {
                 onClick={() => setWeekViewMode(m)}
                 className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
                   weekViewMode === m
-                    ? 'bg-blue-800 text-white border border-blue-900 shadow-sm'
-                    : 'bg-blue-100 text-blue-900 border border-blue-300 shadow-sm hover:bg-blue-200'
+                    ? 'bg-emerald-800 text-white border border-emerald-900 shadow-sm'
+                    : 'bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-sm hover:bg-emerald-200'
                 }`}
               >
                 {m === 'day' ? 'Jour' : m === 'week' ? 'Semaine' : m === 'month' ? 'Mois' : 'Calendrier'}
@@ -1365,7 +1390,7 @@ export default function AdminPage() {
                       <div
                         className={`text-center py-2 px-1 border-b border-gray-100 ${
                           isToday
-                            ? 'bg-blue-100'
+                            ? 'bg-emerald-100'
                             : specialStripeClass || 'bg-gray-50'
                         } ${wd === 6 ? 'text-red-600' : wd === 5 ? 'text-purple-600' : 'text-gray-900'}`}
                       >
@@ -1514,7 +1539,7 @@ export default function AdminPage() {
                         <div
                           className={`text-center py-2 px-1 border-b border-gray-100 ${
                             isToday
-                              ? 'bg-blue-100'
+                              ? 'bg-emerald-100'
                               : specialStripeClass || 'bg-gray-50'
                           } ${wd === 6 ? 'text-red-600' : wd === 5 ? 'text-purple-600' : 'text-gray-900'}`}
                         >
@@ -1684,7 +1709,7 @@ export default function AdminPage() {
                             <div
                               key={cellKey}
                               className={`flex flex-col rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden min-h-[200px] ${
-                                isToday ? 'ring-2 ring-blue-500 ring-offset-1' : ''
+                                isToday ? 'ring-2 ring-emerald-500 ring-offset-1' : ''
                               } ${cellHoliday ? 'border-red-100' : ''} ${specialDayFrameClass}`}
                             >
                               <div
@@ -1693,7 +1718,7 @@ export default function AdminPage() {
                                     ? cellHoliday
                                       ? 'bg-red-50/80 border-red-100'
                                       : isToday
-                                        ? 'bg-blue-100'
+                                        ? 'bg-emerald-100'
                                         : 'bg-gray-50'
                                     : 'bg-gray-100/70 text-gray-400'
                                 } ${inMonth && wd === 6 ? 'text-red-600' : ''} ${inMonth && wd === 5 ? 'text-purple-600' : ''}`}
@@ -1822,8 +1847,8 @@ export default function AdminPage() {
               onClick={() => setConsultMode('week')}
               className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
                 consultMode === 'week'
-                  ? 'bg-blue-800 text-white border border-blue-900 shadow-sm'
-                  : 'bg-blue-100 text-blue-900 border border-blue-300 shadow-sm hover:bg-blue-200'
+                  ? 'bg-emerald-800 text-white border border-emerald-900 shadow-sm'
+                  : 'bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-sm hover:bg-emerald-200'
               }`}
             >
               Cette semaine
@@ -1833,8 +1858,8 @@ export default function AdminPage() {
               onClick={() => setConsultMode('month')}
               className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
                 consultMode === 'month'
-                  ? 'bg-blue-800 text-white border border-blue-900 shadow-sm'
-                  : 'bg-blue-100 text-blue-900 border border-blue-300 shadow-sm hover:bg-blue-200'
+                  ? 'bg-emerald-800 text-white border border-emerald-900 shadow-sm'
+                  : 'bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-sm hover:bg-emerald-200'
               }`}
             >
               Ce mois
@@ -1844,8 +1869,8 @@ export default function AdminPage() {
               onClick={() => setConsultMode('custom')}
               className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
                 consultMode === 'custom'
-                  ? 'bg-blue-800 text-white border border-blue-900 shadow-sm'
-                  : 'bg-blue-100 text-blue-900 border border-blue-300 shadow-sm hover:bg-blue-200'
+                  ? 'bg-emerald-800 text-white border border-emerald-900 shadow-sm'
+                  : 'bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-sm hover:bg-emerald-200'
               }`}
             >
               Période personnalisée
@@ -1887,8 +1912,8 @@ export default function AdminPage() {
               onClick={() => setConsultEmployeeFilter('all')}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
                 consultEmployeeFilter === 'all'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                  ? 'bg-gradient-to-r from-emerald-600 to-green-600 text-white shadow-sm border border-emerald-700'
+                  : 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'
               }`}
             >
               Toutes
@@ -2118,7 +2143,7 @@ export default function AdminPage() {
             <input type="color" className="h-9" value={newEmp.color} onChange={(e) => setNewEmp({ ...newEmp, color: e.target.value })} />
             <input placeholder="email (optionnel)" className="border rounded px-2 py-1" value={newEmp.email} onChange={(e) => setNewEmp({ ...newEmp, email: e.target.value })} />
             <input placeholder="code temporaire" className="border rounded px-2 py-1" value={newEmp.password} onChange={(e) => setNewEmp({ ...newEmp, password: e.target.value })} />
-            <button type="button" className="px-3 py-2 bg-blue-600 text-white rounded" onClick={async () => {
+            <button type="button" className="px-3 py-2 bg-emerald-600 text-white rounded" onClick={async () => {
               const r = await fetch('/api/admin/employees', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newEmp) })
               const body = await r.json().catch(() => ({})) as { error?: string }
               if (!r.ok) {
@@ -2224,7 +2249,7 @@ export default function AdminPage() {
             </label>
             <input type="color" className="h-9 w-10 border rounded" title="Fond" value={newShift.bgColor || '#eeeeee'} onChange={(e) => setNewShift({ ...newShift, bgColor: e.target.value })} />
             <input type="color" className="h-9 w-10 border rounded" title="Texte" value={newShift.fgColor || '#757575'} onChange={(e) => setNewShift({ ...newShift, fgColor: e.target.value })} />
-            <button type="button" className="px-3 py-2 bg-blue-600 text-white rounded" onClick={async () => {
+            <button type="button" className="px-3 py-2 bg-emerald-600 text-white rounded" onClick={async () => {
               const sd = parseTimeInput(newShiftTime.debut)
               const ed = parseTimeInput(newShiftTime.fin)
               if (!sd || !ed) {
